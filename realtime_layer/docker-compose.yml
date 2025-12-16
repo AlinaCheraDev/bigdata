@@ -50,21 +50,41 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    # This command creates the 'energy-data' topic
+    # This command creates the 'energy-data' and 'processed-data' topics
     command:
       [
         "/bin/sh",
         "-c",
-        "sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic energy-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1",
+        "sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic energy-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 && sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic processed-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1",
       ]
 
   energy_simulator:
-    build: .
+    build:
+      context: ./realtime_simulator
     depends_on:
       kafka-init:
         condition: service_completed_successfully
-    volumes:
-      - ./:/app
-    environment:
-      KAFKA_BROKER: kafka:9092
-    command: python energy_simulator.py
+    # volumes:
+    #   - ./:/app
+    # environment:
+    #   KAFKA_BROKER: kafka:9092
+    #command: python energy_simulator.py
+
+  spark_streaming:
+    build:
+      context: ./realtime_processing
+    container_name: spark_streaming
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    # volumes:
+    #   - ./:/opt/spark/app
+    # environment:
+    #   KAFKA_BROKER: kafka:9092
+    # command:
+    #   [
+    #     "/opt/spark/spark-submit",
+    #     "--packages",
+    #     "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0",
+    #     "spark_streaming.py",
+    #   ]
