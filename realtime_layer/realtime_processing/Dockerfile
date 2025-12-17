@@ -17,5 +17,8 @@ WORKDIR /opt/spark/app
 
 COPY spark_streaming.py /opt/spark/app/
 
-ENTRYPOINT ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0"]
+# CORRECT (Exec form - uses brackets):
+ENTRYPOINT ["spark-submit", "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0,com.datastax.spark:spark-cassandra-connector_2.12:3.4.0"]
+
+# This appends to the entrypoint:
 CMD ["spark_streaming.py"]

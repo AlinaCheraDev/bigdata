@@ -40,6 +40,8 @@ services:
       start_period: 5s
     # volumes:
     # - ./kafka-data:/tmp/kraft-combined-logs # Uncomment for persistent data
+    networks:
+      - energy-network
 
   # 2. Topic Creation Service
   kafka-init:
@@ -50,17 +52,20 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    # This command creates the 'energy-data' and 'processed-data' topics
+    # This command creates the 'raw-energy-data' and 'processed-energy-data' topics
     command:
       [
         "/bin/sh",
         "-c",
-        "sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic energy-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 && sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic processed-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1",
+        "sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic raw-energy-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 && sleep 5 && /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic processed-energy-data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1",
       ]
+    networks:
+      - energy-network
 
   energy_simulator:
     build:
       context: ./realtime_simulator
+    container_name: energy_simulator
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -69,6 +74,38 @@ services:
     # environment:
     #   KAFKA_BROKER: kafka:9092
     #command: python energy_simulator.py
+    networks:
+      - energy-network
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=energy-cluster
+      - CASSANDRA_BROADCAST_ADDRESS=localhost
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      #- ./cassandra:/cassandra
+    networks:
+      - energy-network
+
+  cassandra-init:
+    image: cassandra:4.1
+    container_name: cassandra-init
+    depends_on:
+      - cassandra
+    volumes:
+      - ./realtime_storage:/cassandra
+    entrypoint: ["/bin/bash", "-lc"]
+    command: >
+      "echo 'Waiting for Cassandra...' &&
+       for i in {1..60}; do cqlsh cassandra 9042 -e 'DESCRIBE KEYSPACES;' && break || sleep 2; done &&
+       cqlsh cassandra 9042 -f /cassandra/cassandra_schema.cql &&
+       echo 'Cassandra schema applied.'"
+    networks:
+      - energy-network
 
   spark_streaming:
     build:
@@ -76,6 +113,8 @@ services:
     container_name: spark_streaming
     depends_on:
       kafka-init:
+        condition: service_completed_successfully
+      cassandra-init:
         condition: service_completed_successfully
     # volumes:
     #   - ./:/opt/spark/app
@@ -88,3 +127,12 @@ services:
     #     "org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.0",
     #     "spark_streaming.py",
     #   ]
+    networks:
+      - energy-network
+
+networks:
+  energy-network:
+    driver: bridge
+
+volumes:
+  cassandra-data:
