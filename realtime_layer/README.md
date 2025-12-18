@@ -15,6 +15,8 @@ HOW TO RUN
    /opt/kafka/bin $ ./kafka-topics.sh --bootstrap-server kafka:9092 --list
    /opt/kafka/bin $ ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic raw-energy-data --from-beginning
    /opt/kafka/bin $ ./kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic processed-energy-data --from-beginning
+6. docker compose down
+   to also delete volumes: docker compose down -v
 
 IGNORE
 
